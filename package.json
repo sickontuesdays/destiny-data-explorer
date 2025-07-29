@@ -1,31 +1,32 @@
 {
   "name": "destiny-data-explorer",
   "version": "1.0.0",
-  "description": "Bungie API data exploration tool for Destiny 2",
-  "main": "index.js",
+  "description": "Web-based Bungie API data exploration tool for Destiny 2",
   "scripts": {
-    "download": "node scripts/download-manifest.js",
-    "explore": "node scripts/explore-data.js",
-    "analyze": "node scripts/analyze-categories.js",
-    "build": "node scripts/build-data.js",
-    "dev": "node scripts/dev-server.js"
+    "dev": "next dev",
+    "build": "next build",
+    "start": "next start",
+    "lint": "next lint",
+    "export": "next export"
   },
   "keywords": [
     "destiny2", 
     "bungie-api", 
     "gaming", 
-    "data-analysis"
+    "data-analysis",
+    "nextjs",
+    "vercel"
   ],
   "author": "Your Name",
   "license": "MIT",
   "dependencies": {
-    "sqlite3": "^5.1.6",
-    "adm-zip": "^0.5.10",
-    "express": "^4.18.2",
-    "cors": "^2.8.5"
+    "next": "^14.0.0",
+    "react": "^18.2.0",
+    "react-dom": "^18.2.0"
   },
   "devDependencies": {
-    "nodemon": "^3.0.1"
+    "eslint": "^8.50.0",
+    "eslint-config-next": "^14.0.0"
   },
   "engines": {
     "node": ">=16.0.0"
