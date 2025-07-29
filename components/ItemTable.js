@@ -1,14 +1,57 @@
 import { useState } from 'react';
+import { 
+  getClassTypeName, 
+  getTierTypeName, 
+  getEquipmentSlotName,
+  getDamageTypeName,
+  getItemTypeName 
+} from '../lib/bungie-api';
 
 const ItemTable = ({ items, title, showCategories = true, showBungieData = true }) => {
   const [expandedItem, setExpandedItem] = useState(null);
   const [searchTerm, setSearchTerm] = useState('');
+  const [sortBy, setSortBy] = useState('name');
+  const [sortOrder, setSortOrder] = useState('asc');
 
   // Filter items based on search term
   const filteredItems = items.filter(item => 
     item.displayProperties?.name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    item.itemTypeDisplayName?.toLowerCase().includes(searchTerm.toLowerCase())
+    item.itemTypeDisplayName?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+    item.displayProperties?.description?.toLowerCase().includes(searchTerm.toLowerCase())
   );
+
+  // Sort items
+  const sortedItems = [...filteredItems].sort((a, b) => {
+    let aValue, bValue;
+    
+    switch(sortBy) {
+      case 'name':
+        aValue = a.displayProperties?.name || '';
+        bValue = b.displayProperties?.name || '';
+        break;
+      case 'type':
+        aValue = a.itemTypeDisplayName || '';
+        bValue = b.itemTypeDisplayName || '';
+        break;
+      case 'class':
+        aValue = a.classType || 0;
+        bValue = b.classType || 0;
+        break;
+      case 'tier':
+        aValue = a.inventory?.tierType || 0;
+        bValue = b.inventory?.tierType || 0;
+        break;
+      default:
+        aValue = a.displayProperties?.name || '';
+        bValue = b.displayProperties?.name || '';
+    }
+    
+    if (sortOrder === 'asc') {
+      return aValue > bValue ? 1 : -1;
+    } else {
+      return aValue < bValue ? 1 : -1;
+    }
+  });
 
   const toggleExpanded = (hash) => {
     setExpandedItem(expandedItem === hash ? null : hash);
@@ -20,57 +63,66 @@ const ItemTable = ({ items, title, showCategories = true, showBungieData = true 
       itemSubType: item.itemSubType,
       classType: item.classType,
       tierType: item.inventory?.tierType,
-      bucketHash: item.inventory?.bucketTypeHash
+      bucketHash: item.inventory?.bucketTypeHash,
+      damageType: item.defaultDamageType,
+      itemCategoryHashes: item.itemCategoryHashes || []
     };
   };
 
-  const getClassTypeName = (classType) => {
-    switch(classType) {
-      case 0: return 'Titan';
-      case 1: return 'Hunter'; 
-      case 2: return 'Warlock';
-      case 3: return 'All Classes';
-      default: return 'Unknown';
-    }
-  };
-
-  const getTierTypeName = (tierType) => {
+  const getTierClassName = (tierType) => {
     switch(tierType) {
-      case 2: return 'Common';
-      case 3: return 'Rare';
-      case 4: return 'Legendary';
-      case 5: return 'Exotic';
-      default: return 'Unknown';
+      case 2: return 'tier-common';
+      case 3: return 'tier-rare';
+      case 4: return 'tier-legendary';
+      case 5: return 'tier-exotic';
+      default: return 'tier-unknown';
     }
   };
 
   return (
     <div className="item-table">
       <div className="table-header">
-        <h3>{title} ({filteredItems.length} items)</h3>
-        <div className="search-box">
-          <input
-            type="text"
-            placeholder="Search items..."
-            value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
-            className="search-input"
-          />
+        <h3>{title} ({sortedItems.length} items)</h3>
+        <div className="table-controls">
+          <div className="search-box">
+            <input
+              type="text"
+              placeholder="Search items..."
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              className="search-input"
+            />
+          </div>
+          <div className="sort-controls">
+            <select value={sortBy} onChange={(e) => setSortBy(e.target.value)}>
+              <option value="name">Sort by Name</option>
+              <option value="type">Sort by Type</option>
+              <option value="class">Sort by Class</option>
+              <option value="tier">Sort by Tier</option>
+            </select>
+            <button 
+              onClick={() => setSortOrder(sortOrder === 'asc' ? 'desc' : 'asc')}
+              className="sort-order-btn"
+            >
+              {sortOrder === 'asc' ? '↑' : '↓'}
+            </button>
+          </div>
         </div>
       </div>
 
-      {filteredItems.length === 0 ? (
+      {sortedItems.length === 0 ? (
         <div className="no-items">
           {searchTerm ? 'No items match your search.' : 'No items found.'}
         </div>
       ) : (
         <div className="items-grid">
-          {filteredItems.map((item) => {
+          {sortedItems.map((item) => {
             const isExpanded = expandedItem === item.hash;
             const typeInfo = getItemTypeInfo(item);
+            const tierClass = getTierClassName(typeInfo.tierType);
             
             return (
-              <div key={item.hash} className={`item-card ${isExpanded ? 'expanded' : ''}`}>
+              <div key={item.hash} className={`item-card ${isExpanded ? 'expanded' : ''} ${tierClass}`}>
                 <div className="item-basic" onClick={() => toggleExpanded(item.hash)}>
                   <div className="item-icon">
                     {item.displayProperties?.hasIcon ? (
@@ -89,7 +141,7 @@ const ItemTable = ({ items, title, showCategories = true, showBungieData = true 
                       {item.displayProperties?.name || 'Unnamed Item'}
                     </div>
                     <div className="item-type">
-                      {item.itemTypeDisplayName || `Type ${item.itemType}`}
+                      {item.itemTypeDisplayName || getItemTypeName(item.itemType)}
                     </div>
                     {typeInfo.classType !== 3 && typeInfo.classType !== undefined && (
                       <div className="item-class">
@@ -99,6 +151,11 @@ const ItemTable = ({ items, title, showCategories = true, showBungieData = true 
                     {typeInfo.tierType && (
                       <div className="item-tier">
                         ⭐ {getTierTypeName(typeInfo.tierType)}
+                      </div>
+                    )}
+                    {typeInfo.bucketHash && (
+                      <div className="item-slot">
+                        🎯 {getEquipmentSlotName(typeInfo.bucketHash)}
                       </div>
                     )}
                   </div>
@@ -117,7 +174,7 @@ const ItemTable = ({ items, title, showCategories = true, showBungieData = true 
                       </div>
                     )}
 
-                    {showCategories && item.itemCategoryHashes && (
+                    {showCategories && item.itemCategoryHashes && item.itemCategoryHashes.length > 0 && (
                       <div className="item-categories">
                         <strong>Category Hashes:</strong>
                         <div className="category-list">
@@ -138,7 +195,7 @@ const ItemTable = ({ items, title, showCategories = true, showBungieData = true 
                           </div>
                           <div className="data-item">
                             <span className="data-label">Item Type:</span>
-                            <span className="data-value">{typeInfo.itemType}</span>
+                            <span className="data-value">{typeInfo.itemType} ({getItemTypeName(typeInfo.itemType)})</span>
                           </div>
                           <div className="data-item">
                             <span className="data-label">Item SubType:</span>
@@ -146,16 +203,22 @@ const ItemTable = ({ items, title, showCategories = true, showBungieData = true 
                           </div>
                           <div className="data-item">
                             <span className="data-label">Class Type:</span>
-                            <span className="data-value">{typeInfo.classType}</span>
+                            <span className="data-value">{typeInfo.classType} ({getClassTypeName(typeInfo.classType)})</span>
                           </div>
                           <div className="data-item">
                             <span className="data-label">Tier Type:</span>
-                            <span className="data-value">{typeInfo.tierType}</span>
+                            <span className="data-value">{typeInfo.tierType} ({getTierTypeName(typeInfo.tierType)})</span>
                           </div>
                           <div className="data-item">
                             <span className="data-label">Bucket Hash:</span>
-                            <span className="data-value">{typeInfo.bucketHash}</span>
+                            <span className="data-value">{typeInfo.bucketHash} ({getEquipmentSlotName(typeInfo.bucketHash)})</span>
                           </div>
+                          {typeInfo.damageType && (
+                            <div className="data-item">
+                              <span className="data-label">Damage Type:</span>
+                              <span className="data-value">{typeInfo.damageType} ({getDamageTypeName(typeInfo.damageType)})</span>
+                            </div>
+                          )}
                           <div className="data-item">
                             <span className="data-label">Redacted:</span>
                             <span className="data-value">{item.redacted ? 'Yes' : 'No'}</span>
@@ -163,6 +226,10 @@ const ItemTable = ({ items, title, showCategories = true, showBungieData = true 
                           <div className="data-item">
                             <span className="data-label">Blacklisted:</span>
                             <span className="data-value">{item.blacklisted ? 'Yes' : 'No'}</span>
+                          </div>
+                          <div className="data-item">
+                            <span className="data-label">Has Icon:</span>
+                            <span className="data-value">{item.displayProperties?.hasIcon ? 'Yes' : 'No'}</span>
                           </div>
                         </div>
                       </div>
@@ -194,6 +261,13 @@ const ItemTable = ({ items, title, showCategories = true, showBungieData = true 
           color: #333;
         }
 
+        .table-controls {
+          display: flex;
+          gap: 1rem;
+          align-items: center;
+          flex-wrap: wrap;
+        }
+
         .search-input {
           padding: 0.5rem;
           border: 2px solid #ddd;
@@ -203,6 +277,31 @@ const ItemTable = ({ items, title, showCategories = true, showBungieData = true 
 
         .search-input:focus {
           outline: none;
+          border-color: #f39c12;
+        }
+
+        .sort-controls {
+          display: flex;
+          gap: 0.5rem;
+          align-items: center;
+        }
+
+        .sort-controls select {
+          padding: 0.5rem;
+          border: 2px solid #ddd;
+          border-radius: 6px;
+        }
+
+        .sort-order-btn {
+          padding: 0.5rem 0.75rem;
+          border: 2px solid #ddd;
+          border-radius: 6px;
+          background: white;
+          cursor: pointer;
+          font-weight: bold;
+        }
+
+        .sort-order-btn:hover {
           border-color: #f39c12;
         }
 
@@ -235,6 +334,22 @@ const ItemTable = ({ items, title, showCategories = true, showBungieData = true 
 
         .item-card.expanded {
           border-color: #f39c12;
+        }
+
+        .tier-common {
+          border-left: 4px solid #95a5a6;
+        }
+
+        .tier-rare {
+          border-left: 4px solid #3498db;
+        }
+
+        .tier-legendary {
+          border-left: 4px solid #9b59b6;
+        }
+
+        .tier-exotic {
+          border-left: 4px solid #f1c40f;
         }
 
         .item-basic {
@@ -279,14 +394,9 @@ const ItemTable = ({ items, title, showCategories = true, showBungieData = true 
           font-size: 1.1rem;
         }
 
-        .item-type {
+        .item-type, .item-class, .item-tier, .item-slot {
           color: #666;
           font-size: 0.9rem;
-        }
-
-        .item-class, .item-tier {
-          color: #888;
-          font-size: 0.8rem;
         }
 
         .expand-button {
@@ -337,7 +447,7 @@ const ItemTable = ({ items, title, showCategories = true, showBungieData = true 
 
         .data-grid {
           display: grid;
-          grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+          grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
           gap: 0.5rem;
           margin-top: 0.5rem;
         }
@@ -365,6 +475,11 @@ const ItemTable = ({ items, title, showCategories = true, showBungieData = true 
 
         @media (max-width: 768px) {
           .table-header {
+            flex-direction: column;
+            align-items: stretch;
+          }
+
+          .table-controls {
             flex-direction: column;
             align-items: stretch;
           }
