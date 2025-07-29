@@ -1,82 +1,388 @@
-// components/DataExplorer.js - Raw Search Tab Implementation
-// Replace the RawSearchTab placeholder with this implementation
+// components/DataExplorer.js - Complete Fixed Version
+import { useState, useEffect } from 'react';
+import ItemTable from './ItemTable';
+import { 
+  EQUIPMENT_SLOTS, 
+  getClassTypeName, 
+  getTierTypeName,
+  isActiveItem,
+  filterArmorBySlot,
+  filterByClass,
+  filterByTier
+} from '../lib/bungie-api';
 
-// Raw Search Tab - Real Implementation
-const RawSearchTab = ({ callAPI, loading, error }) => {
-  const [searchResults, setSearchResults] = useState([]);
-  const [searchLoading, setSearchLoading] = useState(false);
-  const [searchTerm, setSearchTerm] = useState('');
-  const [itemTypeFilter, setItemTypeFilter] = useState('all');
-  const [classFilter, setClassFilter] = useState('all');
-  const [tierFilter, setTierFilter] = useState('all');
-  const [bucketFilter, setBucketFilter] = useState('all');
-  const [categoryFilter, setCategoryFilter] = useState('all');
-  const [allItems, setAllItems] = useState([]);
-  const [searchPerformed, setSearchPerformed] = useState(false);
+const DataExplorer = ({ apiKey }) => {
+  const [activeTab, setActiveTab] = useState('overview');
+  const [manifestInfo, setManifestInfo] = useState(null);
+  const [itemCategories, setItemCategories] = useState([]);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState(null);
 
-  const itemTypeFilters = {
-    all: 'All Item Types',
-    2: 'Armor',
-    3: 'Weapons',
-    19: 'Subclasses',
-    14: 'Emblems',
-    24: 'Ghosts',
-    39: 'Vehicles/Sparrows',
-    41: 'Ships',
-    21: 'Materials',
-    9: 'Consumables',
-    42: 'Bounties',
-    15: 'Quests',
-    44: 'Seasonal Artifacts',
-    45: 'Finishers'
+  // Fetch manifest info on component mount
+  useEffect(() => {
+    fetchManifestInfo();
+  }, []);
+
+  const fetchManifestInfo = async () => {
+    setLoading(true);
+    setError(null);
+    
+    try {
+      const response = await fetch('/api/bungie', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          endpoint: 'Destiny2/Manifest/',
+          apiKey: apiKey
+        })
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+        setManifestInfo(data.Response);
+      } else {
+        throw new Error('Failed to fetch manifest info');
+      }
+    } catch (err) {
+      setError('Error fetching manifest: ' + err.message);
+    } finally {
+      setLoading(false);
+    }
   };
 
-  const classFilters = {
+  const callBungieAPI = async (endpoint, params = {}) => {
+    setLoading(true);
+    setError(null);
+
+    try {
+      const response = await fetch('/api/bungie', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          endpoint: endpoint,
+          apiKey: apiKey,
+          params: params
+        })
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+        return data.Response;
+      } else {
+        const errorData = await response.json();
+        throw new Error(errorData.error || 'API request failed');
+      }
+    } catch (err) {
+      setError('API Error: ' + err.message);
+      return null;
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const tabs = [
+    { id: 'overview', label: '📊 Overview', icon: '📊' },
+    { id: 'armor', label: '🛡️ Armor Analysis', icon: '🛡️' },
+    { id: 'weapons', label: '⚔️ Weapon Analysis', icon: '⚔️' },
+    { id: 'subclasses', label: '🔮 Subclass Analysis', icon: '🔮' },
+    { id: 'mods', label: '🔧 Mod Analysis', icon: '🔧' },
+    { id: 'raw-search', label: '🔍 Raw Data Search', icon: '🔍' }
+  ];
+
+  const renderTabContent = () => {
+    switch (activeTab) {
+      case 'overview':
+        return <OverviewTab manifestInfo={manifestInfo} />;
+      case 'armor':
+        return <ArmorAnalysisTab callAPI={callBungieAPI} loading={loading} error={error} />;
+      case 'weapons':
+        return <WeaponAnalysisTab callAPI={callBungieAPI} loading={loading} error={error} />;
+      case 'subclasses':
+        return <SubclassAnalysisTab callAPI={callBungieAPI} loading={loading} error={error} />;
+      case 'mods':
+        return <ModAnalysisTab callAPI={callBungieAPI} loading={loading} error={error} />;
+      case 'raw-search':
+        return <RawSearchTab callAPI={callBungieAPI} loading={loading} error={error} />;
+      default:
+        return <div>Select a tab to explore data</div>;
+    }
+  };
+
+  return (
+    <div className="data-explorer">
+      <div className="tabs">
+        {tabs.map(tab => (
+          <button
+            key={tab.id}
+            className={`tab ${activeTab === tab.id ? 'active' : ''}`}
+            onClick={() => setActiveTab(tab.id)}
+          >
+            <span className="tab-icon">{tab.icon}</span>
+            <span className="tab-label">{tab.label}</span>
+          </button>
+        ))}
+      </div>
+
+      <div className="tab-content">
+        {error && (
+          <div className="error-banner">
+            ❌ {error}
+          </div>
+        )}
+        
+        {loading && (
+          <div className="loading-banner">
+            ⏳ Loading data from Bungie API...
+          </div>
+        )}
+
+        {renderTabContent()}
+      </div>
+
+      <style jsx>{`
+        .data-explorer {
+          width: 100%;
+        }
+
+        .tabs {
+          display: flex;
+          flex-wrap: wrap;
+          gap: 0.5rem;
+          margin-bottom: 2rem;
+          border-bottom: 2px solid #eee;
+          padding-bottom: 1rem;
+        }
+
+        .tab {
+          display: flex;
+          align-items: center;
+          gap: 0.5rem;
+          padding: 0.75rem 1rem;
+          border: 2px solid #ddd;
+          border-radius: 8px;
+          background: white;
+          cursor: pointer;
+          transition: all 0.2s;
+          font-size: 0.9rem;
+        }
+
+        .tab:hover {
+          border-color: #f39c12;
+          background: #fdf6e3;
+        }
+
+        .tab.active {
+          border-color: #f39c12;
+          background: #f39c12;
+          color: white;
+        }
+
+        .tab-icon {
+          font-size: 1.2rem;
+        }
+
+        .tab-label {
+          font-weight: 500;
+        }
+
+        .tab-content {
+          min-height: 400px;
+        }
+
+        .error-banner {
+          background: #f8d7da;
+          border: 1px solid #f5c6cb;
+          border-radius: 8px;
+          padding: 1rem;
+          margin-bottom: 1rem;
+          color: #721c24;
+        }
+
+        .loading-banner {
+          background: #d4edda;
+          border: 1px solid #c3e6cb;
+          border-radius: 8px;
+          padding: 1rem;
+          margin-bottom: 1rem;
+          color: #155724;
+          text-align: center;
+        }
+
+        @media (max-width: 768px) {
+          .tabs {
+            flex-direction: column;
+          }
+
+          .tab {
+            justify-content: center;
+          }
+
+          .tab-label {
+            display: none;
+          }
+        }
+      `}</style>
+    </div>
+  );
+};
+
+// Overview Tab Component
+const OverviewTab = ({ manifestInfo }) => (
+  <div className="overview-tab">
+    <div className="card">
+      <h2>🎯 Manifest Information</h2>
+      {manifestInfo ? (
+        <div className="manifest-info">
+          <div className="info-item">
+            <strong>Version:</strong> {manifestInfo.version}
+          </div>
+          <div className="info-item">
+            <strong>Available Languages:</strong> {Object.keys(manifestInfo.mobileWorldContentPaths || {}).join(', ')}
+          </div>
+          <div className="info-item">
+            <strong>Status:</strong> <span className="status-good">✅ Connected</span>
+          </div>
+        </div>
+      ) : (
+        <p>Loading manifest information...</p>
+      )}
+    </div>
+
+    <div className="card">
+      <h2>📋 What Each Tab Does</h2>
+      <div className="tab-descriptions">
+        <div className="tab-desc">
+          <span className="desc-icon">🛡️</span>
+          <div>
+            <strong>Armor Analysis</strong>
+            <p>Explore how Bungie categorizes armor pieces (helmets, gauntlets, chest, legs, class items) and class restrictions.</p>
+          </div>
+        </div>
+        <div className="tab-desc">
+          <span className="desc-icon">⚔️</span>
+          <div>
+            <strong>Weapon Analysis</strong>
+            <p>Understand weapon categorization by slot (kinetic/energy/power), type (auto rifle, hand cannon, etc.), and damage types.</p>
+          </div>
+        </div>
+        <div className="tab-desc">
+          <span className="desc-icon">🔮</span>
+          <div>
+            <strong>Subclass Analysis</strong>
+            <p>Examine how subclasses are structured, including their abilities, aspects, and fragments.</p>
+          </div>
+        </div>
+        <div className="tab-desc">
+          <span className="desc-icon">🔧</span>
+          <div>
+            <strong>Mod Analysis</strong>
+            <p>Investigate armor mods, weapon mods, and seasonal artifact modifications.</p>
+          </div>
+        </div>
+        <div className="tab-desc">
+          <span className="desc-icon">🔍</span>
+          <div>
+            <strong>Raw Data Search</strong>
+            <p>Search for specific items and see their raw Bungie categorization data.</p>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <style jsx>{`
+      .overview-tab .card {
+        background: white;
+        border-radius: 12px;
+        padding: 2rem;
+        margin-bottom: 2rem;
+        box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+      }
+
+      .overview-tab h2 {
+        margin-bottom: 1.5rem;
+        color: #333;
+      }
+
+      .manifest-info {
+        display: flex;
+        flex-direction: column;
+        gap: 1rem;
+      }
+
+      .info-item {
+        padding: 0.75rem;
+        background: #f8f9fa;
+        border-radius: 6px;
+        border-left: 4px solid #f39c12;
+      }
+
+      .status-good {
+        color: #28a745;
+        font-weight: bold;
+      }
+
+      .tab-descriptions {
+        display: flex;
+        flex-direction: column;
+        gap: 1.5rem;
+      }
+
+      .tab-desc {
+        display: flex;
+        gap: 1rem;
+        align-items: flex-start;
+        padding: 1rem;
+        background: #f8f9fa;
+        border-radius: 8px;
+      }
+
+      .desc-icon {
+        font-size: 2rem;
+        flex-shrink: 0;
+      }
+
+      .tab-desc strong {
+        display: block;
+        margin-bottom: 0.5rem;
+        color: #333;
+      }
+
+      .tab-desc p {
+        color: #666;
+        margin: 0;
+        line-height: 1.5;
+      }
+    `}</style>
+  </div>
+);
+
+// Armor Analysis Tab
+const ArmorAnalysisTab = ({ callAPI, loading, error }) => {
+  const [armorItems, setArmorItems] = useState([]);
+  const [armorLoading, setArmorLoading] = useState(false);
+  const [selectedArmorType, setSelectedArmorType] = useState('all');
+  const [selectedClass, setSelectedClass] = useState('all');
+  const [searchTerm, setSearchTerm] = useState('');
+
+  const armorTypes = {
+    all: 'All Armor',
+    helmet: 'Helmets',
+    gauntlets: 'Gauntlets', 
+    chest: 'Chest Armor',
+    legs: 'Leg Armor',
+    classItem: 'Class Items'
+  };
+
+  const classTypes = {
     all: 'All Classes',
     0: 'Titan',
-    1: 'Hunter',
+    1: 'Hunter', 
     2: 'Warlock',
-    3: 'Universal'
+    3: 'All Classes'
   };
 
-  const tierFilters = {
-    all: 'All Tiers',
-    1: 'Currency',
-    2: 'Common',
-    3: 'Rare',
-    4: 'Legendary',
-    5: 'Exotic'
-  };
-
-  const bucketFilters = {
-    all: 'All Equipment Slots',
-    1498876634: 'Kinetic Weapons',
-    2465295065: 'Energy Weapons',
-    953998645: 'Power Weapons',
-    3448274439: 'Helmet',
-    3551918588: 'Gauntlets',
-    14239492: 'Chest Armor',
-    20886954: 'Leg Armor',
-    1585787867: 'Class Item',
-    4023194814: 'Ghost',
-    2025709351: 'Vehicle',
-    284967655: 'Ship',
-    2973005342: 'Shader',
-    4274335291: 'Emblem'
-  };
-
-  const categoryFilters = {
-    all: 'All Categories',
-    weapons: 'Weapons Only',
-    armor: 'Armor Only',
-    cosmetics: 'Cosmetics (Shaders/Emblems)',
-    consumables: 'Consumables/Materials',
-    collectibles: 'Collectibles',
-    mods: 'Mods/Plugs'
-  };
-
-  const fetchAllItems = async () => {
-    setSearchLoading(true);
+  const fetchArmorData = async () => {
+    setArmorLoading(true);
     try {
       const manifestResponse = await callAPI('Destiny2/Manifest/');
       
@@ -88,308 +394,117 @@ const RawSearchTab = ({ callAPI, loading, error }) => {
           const worldContent = await itemsResponse.json();
           const inventoryItems = worldContent.DestinyInventoryItemDefinition || {};
           
-          const itemList = Object.values(inventoryItems).filter(item => {
+          const armorList = Object.values(inventoryItems).filter(item => {
             return (
+              item.itemType === 2 && // Armor type
               !item.redacted &&
               !item.blacklisted &&
               item.displayProperties?.name &&
-              item.displayProperties.name.trim() !== ''
+              item.displayProperties.name.trim() !== '' &&
+              item.inventory?.bucketTypeHash
             );
           });
           
-          setAllItems(itemList);
-          setSearchResults(itemList.slice(0, 100)); // Show first 100 by default
-          setSearchPerformed(true);
+          setArmorItems(armorList);
         }
       }
     } catch (err) {
-      console.error('Error fetching item data:', err);
+      console.error('Error fetching armor data:', err);
     } finally {
-      setSearchLoading(false);
+      setArmorLoading(false);
     }
   };
 
-  const performSearch = () => {
-    if (!allItems.length) return;
+  const filteredArmor = armorItems.filter(item => {
+    if (selectedArmorType !== 'all') {
+      const bucketHash = item.inventory?.bucketTypeHash;
+      const typeMatch = {
+        helmet: bucketHash === EQUIPMENT_SLOTS.HELMET,
+        gauntlets: bucketHash === EQUIPMENT_SLOTS.GAUNTLETS,
+        chest: bucketHash === EQUIPMENT_SLOTS.CHEST_ARMOR,
+        legs: bucketHash === EQUIPMENT_SLOTS.LEG_ARMOR,
+        classItem: bucketHash === EQUIPMENT_SLOTS.CLASS_ARMOR
+      };
+      
+      if (!typeMatch[selectedArmorType]) return false;
+    }
 
-    let filtered = allItems;
+    if (selectedClass !== 'all') {
+      if (item.classType !== parseInt(selectedClass) && item.classType !== 3) return false;
+    }
 
-    // Text search
-    if (searchTerm.trim()) {
+    if (searchTerm) {
+      const name = item.displayProperties?.name?.toLowerCase() || '';
+      const description = item.displayProperties?.description?.toLowerCase() || '';
       const term = searchTerm.toLowerCase();
-      filtered = filtered.filter(item => {
-        const name = item.displayProperties?.name?.toLowerCase() || '';
-        const description = item.displayProperties?.description?.toLowerCase() || '';
-        const typeName = item.itemTypeDisplayName?.toLowerCase() || '';
-        const flavorText = item.displayProperties?.description?.toLowerCase() || '';
-        
-        return name.includes(term) || 
-               description.includes(term) || 
-               typeName.includes(term) ||
-               flavorText.includes(term) ||
-               item.hash.toString().includes(term);
-      });
+      if (!name.includes(term) && !description.includes(term)) return false;
     }
 
-    // Item type filter
-    if (itemTypeFilter !== 'all') {
-      filtered = filtered.filter(item => item.itemType === parseInt(itemTypeFilter));
-    }
-
-    // Class filter
-    if (classFilter !== 'all') {
-      filtered = filtered.filter(item => 
-        item.classType === parseInt(classFilter) || 
-        (parseInt(classFilter) === 3 && item.classType === 3)
-      );
-    }
-
-    // Tier filter
-    if (tierFilter !== 'all') {
-      filtered = filtered.filter(item => 
-        item.inventory?.tierType === parseInt(tierFilter)
-      );
-    }
-
-    // Bucket filter
-    if (bucketFilter !== 'all') {
-      filtered = filtered.filter(item => 
-        item.inventory?.bucketTypeHash === parseInt(bucketFilter)
-      );
-    }
-
-    // Category filter
-    if (categoryFilter !== 'all') {
-      filtered = filtered.filter(item => {
-        switch(categoryFilter) {
-          case 'weapons':
-            return item.itemType === 3;
-          case 'armor':
-            return item.itemType === 2;
-          case 'cosmetics':
-            return item.itemType === 14 || item.itemType === 41 || 
-                   (item.inventory?.bucketTypeHash === 2973005342); // Shaders
-          case 'consumables':
-            return item.itemType === 9 || item.itemType === 21;
-          case 'collectibles':
-            return item.collectibleHash !== undefined;
-          case 'mods':
-            return item.plug !== undefined;
-          default:
-            return true;
-        }
-      });
-    }
-
-    setSearchResults(filtered.slice(0, 200)); // Limit to 200 results for performance
-    setSearchPerformed(true);
-  };
-
-  const handleSearchChange = (value) => {
-    setSearchTerm(value);
-  };
-
-  const clearSearch = () => {
-    setSearchTerm('');
-    setItemTypeFilter('all');
-    setClassFilter('all');
-    setTierFilter('all');
-    setBucketFilter('all');
-    setCategoryFilter('all');
-    setSearchResults(allItems.slice(0, 100));
-  };
-
-  const getSearchStats = () => {
-    if (!allItems.length) return null;
-    
-    return {
-      total: allItems.length,
-      weapons: allItems.filter(item => item.itemType === 3).length,
-      armor: allItems.filter(item => item.itemType === 2).length,
-      subclasses: allItems.filter(item => item.itemType === 19).length,
-      mods: allItems.filter(item => item.plug !== undefined).length,
-      exotic: allItems.filter(item => item.inventory?.tierType === 5).length,
-      legendary: allItems.filter(item => item.inventory?.tierType === 4).length
-    };
-  };
-
-  const stats = getSearchStats();
+    return true;
+  });
 
   return (
-    <div className="raw-search">
+    <div className="armor-analysis">
       <div className="analysis-header">
-        <h2>🔍 Raw Data Search</h2>
-        <p>Search through all Destiny 2 items and examine their raw Bungie categorization data.</p>
+        <h2>🛡️ Armor Analysis</h2>
+        <p>Explore how Bungie categorizes armor pieces and class restrictions.</p>
         
         <div className="fetch-section">
           <button 
-            onClick={fetchAllItems} 
-            disabled={searchLoading}
+            onClick={fetchArmorData} 
+            disabled={armorLoading}
             className="fetch-button"
           >
-            {searchLoading ? '⏳ Loading All Items...' : '🔍 Load Item Database'}
+            {armorLoading ? '⏳ Loading Armor Data...' : '🔍 Fetch Armor Data'}
           </button>
           
-          {allItems.length > 0 && (
-            <p className="data-status">✅ Loaded {allItems.length} total items</p>
+          {armorItems.length > 0 && (
+            <p className="data-status">✅ Loaded {armorItems.length} armor items</p>
           )}
         </div>
       </div>
 
-      {stats && (
-        <div className="database-stats">
-          <h3>📊 Database Statistics</h3>
-          <div className="stats-grid">
-            <div className="stat-item">
-              <strong>Total Items:</strong> {stats.total.toLocaleString()}
-            </div>
-            <div className="stat-item">
-              <strong>Weapons:</strong> {stats.weapons.toLocaleString()}
-            </div>
-            <div className="stat-item">
-              <strong>Armor:</strong> {stats.armor.toLocaleString()}
-            </div>
-            <div className="stat-item">
-              <strong>Subclasses:</strong> {stats.subclasses.toLocaleString()}
-            </div>
-            <div className="stat-item">
-              <strong>Mods/Plugs:</strong> {stats.mods.toLocaleString()}
-            </div>
-            <div className="stat-item">
-              <strong>Exotic Items:</strong> {stats.exotic.toLocaleString()}
-            </div>
-            <div className="stat-item">
-              <strong>Legendary Items:</strong> {stats.legendary.toLocaleString()}
-            </div>
-          </div>
-        </div>
-      )}
-
-      {allItems.length > 0 && (
+      {armorItems.length > 0 && (
         <>
-          <div className="search-controls">
-            <div className="search-header">
-              <h3>🔎 Advanced Search</h3>
-              <button onClick={clearSearch} className="clear-button">
-                🗑️ Clear All Filters
-              </button>
+          <div className="filters">
+            <div className="filter-group">
+              <label>Armor Type:</label>
+              <select 
+                value={selectedArmorType} 
+                onChange={(e) => setSelectedArmorType(e.target.value)}
+              >
+                {Object.entries(armorTypes).map(([key, label]) => (
+                  <option key={key} value={key}>{label}</option>
+                ))}
+              </select>
             </div>
-            
-            <div className="main-search-row">
-              <div className="search-input-group">
-                <input
-                  type="text"
-                  value={searchTerm}
-                  onChange={(e) => handleSearchChange(e.target.value)}
-                  placeholder="Search by name, description, hash, or type..."
-                  className="main-search-input"
-                  onKeyPress={(e) => e.key === 'Enter' && performSearch()}
-                />
-                <button onClick={performSearch} className="search-button">
-                  🔍 Search ({searchResults.length} results)
-                </button>
-              </div>
+
+            <div className="filter-group">
+              <label>Class:</label>
+              <select 
+                value={selectedClass} 
+                onChange={(e) => setSelectedClass(e.target.value)}
+              >
+                {Object.entries(classTypes).map(([key, label]) => (
+                  <option key={key} value={key}>{label}</option>
+                ))}
+              </select>
             </div>
-            
-            <div className="filters-grid">
-              <div className="filter-group">
-                <label>Item Type:</label>
-                <select 
-                  value={itemTypeFilter} 
-                  onChange={(e) => setItemTypeFilter(e.target.value)}
-                >
-                  {Object.entries(itemTypeFilters).map(([key, label]) => (
-                    <option key={key} value={key}>{label}</option>
-                  ))}
-                </select>
-              </div>
 
-              <div className="filter-group">
-                <label>Class:</label>
-                <select 
-                  value={classFilter} 
-                  onChange={(e) => setClassFilter(e.target.value)}
-                >
-                  {Object.entries(classFilters).map(([key, label]) => (
-                    <option key={key} value={key}>{label}</option>
-                  ))}
-                </select>
-              </div>
-
-              <div className="filter-group">
-                <label>Tier:</label>
-                <select 
-                  value={tierFilter} 
-                  onChange={(e) => setTierFilter(e.target.value)}
-                >
-                  {Object.entries(tierFilters).map(([key, label]) => (
-                    <option key={key} value={key}>{label}</option>
-                  ))}
-                </select>
-              </div>
-
-              <div className="filter-group">
-                <label>Equipment Slot:</label>
-                <select 
-                  value={bucketFilter} 
-                  onChange={(e) => setBucketFilter(e.target.value)}
-                >
-                  {Object.entries(bucketFilters).map(([key, label]) => (
-                    <option key={key} value={key}>{label}</option>
-                  ))}
-                </select>
-              </div>
-
-              <div className="filter-group">
-                <label>Category:</label>
-                <select 
-                  value={categoryFilter} 
-                  onChange={(e) => setCategoryFilter(e.target.value)}
-                >
-                  {Object.entries(categoryFilters).map(([key, label]) => (
-                    <option key={key} value={key}>{label}</option>
-                  ))}
-                </select>
-              </div>
-            </div>
-          </div>
-
-          <div className="search-tips">
-            <h3>💡 Search Tips</h3>
-            <div className="tips-grid">
-              <div className="tip-card">
-                <h4>Text Search</h4>
-                <ul>
-                  <li>Search item names, descriptions, or hashes</li>
-                  <li>Use partial matches (e.g., "ace" finds "Ace of Spades")</li>
-                  <li>Search by hash number for exact items</li>
-                </ul>
-              </div>
-              <div className="tip-card">
-                <h4>Advanced Filtering</h4>
-                <ul>
-                  <li>Combine multiple filters for precise results</li>
-                  <li>Use Equipment Slot to find specific gear types</li>
-                  <li>Filter by Tier to find Exotic/Legendary items</li>
-                </ul>
-              </div>
-              <div className="tip-card">
-                <h4>Data Analysis</h4>
-                <ul>
-                  <li>Click items to see raw Bungie data structure</li>
-                  <li>Check Category Hashes for classification</li>
-                  <li>Compare similar items to understand patterns</li>
-                </ul>
-              </div>
+            <div className="filter-group">
+              <label>Search:</label>
+              <input
+                type="text"
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                placeholder="Search armor names..."
+              />
             </div>
           </div>
 
           <ItemTable 
-            items={searchResults}
-            title={searchPerformed ? 
-              `Search Results (${searchResults.length} items${searchResults.length === 200 ? ' - showing first 200' : ''})` :
-              `Recent Items (${searchResults.length} items)`
-            }
+            items={filteredArmor}
+            title={`Armor Items (${filteredArmor.length} found)`}
             showCategories={true}
             showBungieData={true}
           />
@@ -397,7 +512,7 @@ const RawSearchTab = ({ callAPI, loading, error }) => {
       )}
 
       <style jsx>{`
-        .raw-search {
+        .armor-analysis {
           width: 100%;
         }
 
@@ -424,7 +539,7 @@ const RawSearchTab = ({ callAPI, loading, error }) => {
 
         .fetch-button {
           padding: 0.75rem 1.5rem;
-          background: #34495e;
+          background: #f39c12;
           color: white;
           border: none;
           border-radius: 8px;
@@ -434,7 +549,7 @@ const RawSearchTab = ({ callAPI, loading, error }) => {
         }
 
         .fetch-button:hover {
-          background: #2c3e50;
+          background: #e67e22;
         }
 
         .fetch-button:disabled {
@@ -448,109 +563,14 @@ const RawSearchTab = ({ callAPI, loading, error }) => {
           margin: 0;
         }
 
-        .database-stats {
-          background: #f8f9fa;
-          padding: 1.5rem;
-          border-radius: 8px;
-          margin-bottom: 2rem;
-          border-left: 4px solid #34495e;
-        }
-
-        .database-stats h3 {
-          margin-bottom: 1rem;
-          color: #333;
-        }
-
-        .stats-grid {
-          display: grid;
-          grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
-          gap: 1rem;
-        }
-
-        .stat-item {
-          background: white;
-          padding: 1rem;
-          border-radius: 6px;
-          text-align: center;
-          font-size: 0.9rem;
-        }
-
-        .search-controls {
-          background: #f8f9fa;
-          padding: 1.5rem;
-          border-radius: 8px;
-          margin-bottom: 2rem;
-        }
-
-        .search-header {
-          display: flex;
-          justify-content: space-between;
-          align-items: center;
-          margin-bottom: 1rem;
-        }
-
-        .search-header h3 {
-          margin: 0;
-          color: #333;
-        }
-
-        .clear-button {
-          padding: 0.5rem 1rem;
-          background: #e74c3c;
-          color: white;
-          border: none;
-          border-radius: 6px;
-          cursor: pointer;
-          font-size: 0.9rem;
-        }
-
-        .clear-button:hover {
-          background: #c0392b;
-        }
-
-        .main-search-row {
-          margin-bottom: 1.5rem;
-        }
-
-        .search-input-group {
-          display: flex;
-          gap: 1rem;
-          align-items: center;
-        }
-
-        .main-search-input {
-          flex: 1;
-          padding: 0.75rem;
-          border: 2px solid #ddd;
-          border-radius: 6px;
-          font-size: 1rem;
-          min-width: 300px;
-        }
-
-        .main-search-input:focus {
-          outline: none;
-          border-color: #34495e;
-        }
-
-        .search-button {
-          padding: 0.75rem 1.5rem;
-          background: #34495e;
-          color: white;
-          border: none;
-          border-radius: 6px;
-          cursor: pointer;
-          font-weight: 500;
-          white-space: nowrap;
-        }
-
-        .search-button:hover {
-          background: #2c3e50;
-        }
-
-        .filters-grid {
+        .filters {
           display: grid;
           grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
           gap: 1rem;
+          background: #f8f9fa;
+          padding: 1.5rem;
+          border-radius: 8px;
+          margin-bottom: 2rem;
         }
 
         .filter-group {
@@ -562,84 +582,53 @@ const RawSearchTab = ({ callAPI, loading, error }) => {
         .filter-group label {
           font-weight: 500;
           color: #333;
-          font-size: 0.9rem;
         }
 
-        .filter-group select {
+        .filter-group select,
+        .filter-group input {
           padding: 0.5rem;
           border: 2px solid #ddd;
           border-radius: 6px;
           font-size: 1rem;
         }
 
-        .filter-group select:focus {
+        .filter-group select:focus,
+        .filter-group input:focus {
           outline: none;
-          border-color: #34495e;
-        }
-
-        .search-tips {
-          background: #f8f9fa;
-          padding: 1.5rem;
-          border-radius: 8px;
-          margin-bottom: 2rem;
-          border-left: 4px solid #f39c12;
-        }
-
-        .search-tips h3 {
-          margin-bottom: 1rem;
-          color: #333;
-        }
-
-        .tips-grid {
-          display: grid;
-          grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
-          gap: 1rem;
-        }
-
-        .tip-card {
-          background: white;
-          padding: 1rem;
-          border-radius: 6px;
-        }
-
-        .tip-card h4 {
-          margin-bottom: 0.5rem;
-          color: #333;
-          font-size: 1rem;
-        }
-
-        .tip-card ul {
-          margin: 0;
-          padding-left: 1rem;
-          color: #666;
-        }
-
-        .tip-card li {
-          margin-bottom: 0.25rem;
-          font-size: 0.85rem;
-        }
-
-        @media (max-width: 768px) {
-          .search-header {
-            flex-direction: column;
-            gap: 1rem;
-            align-items: stretch;
-          }
-
-          .search-input-group {
-            flex-direction: column;
-            align-items: stretch;
-          }
-
-          .main-search-input {
-            min-width: unset;
-          }
-
-          .filters-grid {
-            grid-template-columns: 1fr;
-          }
+          border-color: #f39c12;
         }
       `}</style>
     </div>
   );
 };
+
+// Placeholder components for other tabs that will be implemented
+const WeaponAnalysisTab = ({ callAPI, loading, error }) => (
+  <div>
+    <h2>⚔️ Weapon Analysis Coming Next...</h2>
+    <p>This will show how Bungie categorizes weapons by slot, type, and damage.</p>
+  </div>
+);
+
+const SubclassAnalysisTab = ({ callAPI, loading, error }) => (
+  <div>
+    <h2>🔮 Subclass Analysis Coming Next...</h2>
+    <p>This will show how Bungie categorizes subclasses and their abilities.</p>
+  </div>
+);
+
+const ModAnalysisTab = ({ callAPI, loading, error }) => (
+  <div>
+    <h2>🔧 Mod Analysis Coming Next...</h2>
+    <p>This will show how Bungie categorizes armor mods, weapon mods, and seasonal artifacts.</p>
+  </div>
+);
+
+const RawSearchTab = ({ callAPI, loading, error }) => (
+  <div>
+    <h2>🔍 Raw Data Search Coming Next...</h2>
+    <p>This will allow you to search for any item and see its raw Bungie data structure.</p>
+  </div>
+);
+
+export default DataExplorer;
