@@ -756,7 +756,10 @@ const SubclassAnalysisTab = ({ callAPI, loading, error }) => {
         
         <div className="fetch-section">
           <button 
-            onClick={fetchSubclassData} 
+            onClick={() => {
+              console.log('🔘 Button clicked - starting fetch');
+              fetchSubclassData();
+            }}
             disabled={subclassLoading}
             className="fetch-button"
           >
