@@ -646,15 +646,26 @@ const SubclassAnalysisTab = ({ callAPI, loading, error }) => {
   const fetchSubclassData = async () => {
     setSubclassLoading(true);
     try {
+      console.log('🔮 Starting subclass fetch...');
       const manifestResponse = await callAPI('Destiny2/Manifest/');
+      console.log('📋 Manifest response received:', manifestResponse);
       
       if (manifestResponse && manifestResponse.jsonWorldContentPaths) {
         const worldContentUrl = manifestResponse.jsonWorldContentPaths.en;
+        console.log('📥 Downloading manifest from:', worldContentUrl);
+        
         const itemsResponse = await fetch(`https://www.bungie.net${worldContentUrl}`);
+        console.log('📊 Manifest download status:', itemsResponse.status);
         
         if (itemsResponse.ok) {
+          console.log('⚙️ Parsing manifest data...');
           const worldContent = await itemsResponse.json();
+          console.log('✅ Manifest parsed, processing items...');
+          
           const inventoryItems = worldContent.DestinyInventoryItemDefinition || {};
+          console.log('Total inventory items:', Object.keys(inventoryItems).length);
+          
+          console.log('Total inventory items:', Object.keys(inventoryItems).length);
           
           const subclassList = Object.values(inventoryItems).filter(item => {
             return (
@@ -681,12 +692,23 @@ const SubclassAnalysisTab = ({ callAPI, loading, error }) => {
             );
           });
           
+          console.log('Filtered subclasses found:', subclassList.length);
+          console.log('Sample subclass names:', subclassList.slice(0, 5).map(item => item.displayProperties?.name));
+          
           setSubclassItems(subclassList);
+        } else {
+          console.error('❌ Failed to download manifest:', itemsResponse.status, itemsResponse.statusText);
+          throw new Error(`Failed to download manifest: ${itemsResponse.status}`);
         }
+      } else {
+        console.error('❌ No manifest response or missing jsonWorldContentPaths');
+        throw new Error('No manifest data received');
       }
     } catch (err) {
-      console.error('Error fetching subclass data:', err);
+      console.error('💥 Error fetching subclass data:', err);
+      alert('Error loading subclass data: ' + err.message);
     } finally {
+      console.log('🏁 Subclass fetch completed');
       setSubclassLoading(false);
     }
   };
