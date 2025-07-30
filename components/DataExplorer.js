@@ -716,14 +716,13 @@ const SubclassAnalysisTab = ({ callAPI, loading, error }) => {
         <div className="fetch-section">
           <button 
             onClick={() => {
-              console.log('🔘 BUTTON CLICKED - SIMPLE TEST!');
-              alert('Button clicked!');
+              console.log('🔘 BUTTON CLICKED - STARTING FETCH!');
+              fetchSubclassData();
             }}
-            disabled={false}
+            disabled={subclassLoading}
             className="fetch-button"
-            style={{ background: '#e74c3c', color: 'white', padding: '1rem', fontSize: '1rem' }}
           >
-            🧪 SIMPLE CLICK TEST
+            {subclassLoading ? '⏳ Loading Subclass Data...' : '🔍 Fetch Subclass Data'}
           </button>
           
           {subclassItems.length > 0 && (
