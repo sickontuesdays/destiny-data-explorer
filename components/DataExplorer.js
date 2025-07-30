@@ -669,19 +669,47 @@ const SubclassAnalysisTab = ({ callAPI, loading, error }) => {
       const inventoryItems = worldContent.DestinyInventoryItemDefinition;
       console.log('📦 Total inventory items:', Object.keys(inventoryItems).length);
       
-      // Very simple filtering to start
+      // Filter for items with specific category hashes: 59 and 1043342778
       const allItems = Object.values(inventoryItems);
       console.log('📋 Total items as array:', allItems.length);
       
-      const itemType19Items = allItems.filter(item => item.itemType === 19);
-      console.log('🔍 Items with itemType 19:', itemType19Items.length);
+      const subclassItems = allItems.filter(item => {
+        // Check if item has itemCategoryHashes array
+        if (!item.itemCategoryHashes || !Array.isArray(item.itemCategoryHashes)) {
+          return false;
+        }
+        
+        // Check if it contains both required category hashes
+        const hasHash59 = item.itemCategoryHashes.includes(59);
+        const hasHash1043342778 = item.itemCategoryHashes.includes(1043342778);
+        
+        return hasHash59 && hasHash1043342778;
+      });
       
-      // Just take the first 50 for testing
-      const testSubclasses = itemType19Items.slice(0, 50);
-      console.log('🧪 Taking first 50 items for testing');
-      console.log('📝 Sample names:', testSubclasses.slice(0, 5).map(item => item.displayProperties?.name || 'NO NAME'));
+      console.log('🎯 Items with category hashes 59 AND 1043342778:', subclassItems.length);
       
-      setSubclassItems(testSubclasses);
+      // Also check items with just one of the hashes for debugging
+      const itemsWithHash59 = allItems.filter(item => 
+        item.itemCategoryHashes && item.itemCategoryHashes.includes(59)
+      );
+      const itemsWithHash1043342778 = allItems.filter(item => 
+        item.itemCategoryHashes && item.itemCategoryHashes.includes(1043342778)
+      );
+      
+      console.log('🔍 Items with hash 59:', itemsWithHash59.length);
+      console.log('🔍 Items with hash 1043342778:', itemsWithHash1043342778.length);
+      
+      // Show sample names
+      console.log('📝 Sample subclass names:', subclassItems.slice(0, 10).map(item => 
+        item.displayProperties?.name || 'NO NAME'
+      ));
+      
+      // Show sample category hashes for debugging
+      if (subclassItems.length > 0) {
+        console.log('🏷️ Sample category hashes:', subclassItems[0].itemCategoryHashes);
+      }
+      
+      setSubclassItems(subclassItems);
       console.log('💾 Set subclass items in state');
       
     } catch (err) {
