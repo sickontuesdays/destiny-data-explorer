@@ -632,59 +632,67 @@ const SubclassAnalysisTab = ({ callAPI, loading, error }) => {
     setSubclassLoading(true);
     
     try {
+      console.log('📞 Calling Bungie API for manifest...');
       const manifestResponse = await callAPI('Destiny2/Manifest/');
-      console.log('📋 Manifest response received');
+      console.log('📋 Manifest response received:', !!manifestResponse);
       
-      if (manifestResponse && manifestResponse.jsonWorldContentPaths) {
-        const worldContentUrl = manifestResponse.jsonWorldContentPaths.en;
-        console.log('📥 Downloading manifest from:', worldContentUrl);
-        
-        const itemsResponse = await fetch(`https://www.bungie.net${worldContentUrl}`);
-        console.log('📊 Manifest download status:', itemsResponse.status);
-        
-        if (itemsResponse.ok) {
-          console.log('⚙️ Parsing manifest data...');
-          const worldContent = await itemsResponse.json();
-          console.log('✅ Manifest parsed');
-          
-          const inventoryItems = worldContent.DestinyInventoryItemDefinition || {};
-          console.log('📦 Total inventory items:', Object.keys(inventoryItems).length);
-          
-          // Start with basic filtering, then add more specific filters
-          const itemType19Items = Object.values(inventoryItems).filter(item => item.itemType === 19);
-          console.log('🔍 Items with itemType 19:', itemType19Items.length);
-          
-          // Filter for actual subclasses (simplified)
-          const subclassList = itemType19Items.filter(item => {
-            return (
-              !item.redacted &&
-              !item.blacklisted &&
-              item.displayProperties?.name &&
-              item.displayProperties.name.trim() !== '' &&
-              item.classType !== undefined &&
-              item.classType !== 3 && // Exclude "All Classes"
-              item.defaultDamageType !== undefined &&
-              item.defaultDamageType > 0 &&
-              // Simple check to exclude ornaments
-              !item.displayProperties.name.toLowerCase().includes('ornament')
-            );
-          });
-          
-          console.log('🎯 Filtered subclasses found:', subclassList.length);
-          console.log('📝 Sample names:', subclassList.slice(0, 5).map(item => item.displayProperties?.name));
-          
-          setSubclassItems(subclassList);
-        } else {
-          throw new Error(`Failed to download manifest: ${itemsResponse.status}`);
-        }
-      } else {
-        throw new Error('No manifest data received');
+      if (!manifestResponse) {
+        throw new Error('No manifest response received');
       }
+      
+      if (!manifestResponse.jsonWorldContentPaths) {
+        throw new Error('No jsonWorldContentPaths in manifest response');
+      }
+      
+      const worldContentUrl = manifestResponse.jsonWorldContentPaths.en;
+      if (!worldContentUrl) {
+        throw new Error('No English world content URL found');
+      }
+      
+      console.log('📥 Downloading manifest from:', worldContentUrl.substring(0, 50) + '...');
+      
+      const itemsResponse = await fetch(`https://www.bungie.net${worldContentUrl}`);
+      console.log('📊 Manifest download status:', itemsResponse.status, itemsResponse.statusText);
+      
+      if (!itemsResponse.ok) {
+        throw new Error(`Manifest download failed: ${itemsResponse.status} ${itemsResponse.statusText}`);
+      }
+      
+      console.log('⚙️ Parsing manifest JSON...');
+      const worldContent = await itemsResponse.json();
+      console.log('✅ Manifest parsed successfully');
+      
+      if (!worldContent.DestinyInventoryItemDefinition) {
+        throw new Error('No DestinyInventoryItemDefinition found in manifest');
+      }
+      
+      const inventoryItems = worldContent.DestinyInventoryItemDefinition;
+      console.log('📦 Total inventory items:', Object.keys(inventoryItems).length);
+      
+      // Very simple filtering to start
+      const allItems = Object.values(inventoryItems);
+      console.log('📋 Total items as array:', allItems.length);
+      
+      const itemType19Items = allItems.filter(item => item.itemType === 19);
+      console.log('🔍 Items with itemType 19:', itemType19Items.length);
+      
+      // Just take the first 50 for testing
+      const testSubclasses = itemType19Items.slice(0, 50);
+      console.log('🧪 Taking first 50 items for testing');
+      console.log('📝 Sample names:', testSubclasses.slice(0, 5).map(item => item.displayProperties?.name || 'NO NAME'));
+      
+      setSubclassItems(testSubclasses);
+      console.log('💾 Set subclass items in state');
+      
     } catch (err) {
-      console.error('💥 Error fetching subclass data:', err);
-      alert('Error loading subclass data: ' + err.message);
+      console.error('💥 DETAILED ERROR:', {
+        message: err.message,
+        stack: err.stack,
+        name: err.name
+      });
+      alert('Detailed error: ' + err.message);
     } finally {
-      console.log('🏁 Subclass fetch completed');
+      console.log('🏁 Subclass fetch completed, setting loading to false');
       setSubclassLoading(false);
     }
   };
