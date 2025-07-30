@@ -664,7 +664,20 @@ const SubclassAnalysisTab = ({ callAPI, loading, error }) => {
               item.displayProperties?.name &&
               item.displayProperties.name.trim() !== '' &&
               item.classType !== undefined &&
-              item.classType !== 3 // Exclude "All Classes" subclasses (these are usually invalid)
+              item.classType !== 3 && // Exclude "All Classes" subclasses
+              // Additional filters to exclude ornaments and other non-subclass items
+              !item.displayProperties?.name?.toLowerCase().includes('ornament') &&
+              !item.itemTypeDisplayName?.toLowerCase().includes('ornament') &&
+              item.talentGrid !== undefined && // Real subclasses should have talent grids
+              item.defaultDamageType !== undefined && // Should have an element
+              item.defaultDamageType > 0 && // Should not be "None" damage type
+              // Filter out items that are clearly cosmetic/ornaments by category
+              (!item.itemCategoryHashes || !item.itemCategoryHashes.includes(3124752623)) && // Ornament category hash
+              (!item.itemCategoryHashes || !item.itemCategoryHashes.includes(1742617626)) && // Another ornament category
+              // Ensure it has subclass-like properties
+              (item.displayProperties?.name && 
+               !item.displayProperties.name.toLowerCase().includes('shader') &&
+               !item.displayProperties.name.toLowerCase().includes('emblem'))
             );
           });
           
